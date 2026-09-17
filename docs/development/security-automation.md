@@ -26,7 +26,7 @@ Dependabot is configured weekly for Cargo, `apps/desktop` npm/pnpm dependencies,
 
 ## Mergify
 
-Mergify is already installed for this repository. `.mergify.yml` configures only Merge Protections for `main`: Conventional Commit-style PR titles plus the core Rust, cargo-audit, and desktop CI checks.
+Mergify is already installed for this repository. `.mergify.yml` configures only Merge Protections for `main`: Conventional Commit-style PR titles plus the core Rust, cargo-audit, desktop, Dependency Review, zizmor, and OSV PR checks.
 
 Auto-merge/auto-queue is intentionally not configured. The `auto_merge_conditions` setting is omitted so merging remains an explicit maintainer action.
 

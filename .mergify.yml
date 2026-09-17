@@ -14,3 +14,6 @@ merge_protections:
       - 'check-success = @github-actions/rust / macos-latest'
       - 'check-success = @github-actions/security / cargo-audit'
       - 'check-success = @github-actions/frontend (apps/desktop)'
+      - 'check-success = @github-actions/security / dependency-review'
+      - 'check-success = @github-actions/security / zizmor'
+      - 'check-success = @github-actions/security / osv-pr / osv-scan'
