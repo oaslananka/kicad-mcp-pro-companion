@@ -5,7 +5,7 @@ This document records the repository-level security and quality automation basel
 ## Enforced in repository workflows
 
 - GitHub Actions are pinned to full commit SHAs; version comments are kept for Dependabot readability.
-- Workflow tokens default to no permissions or `contents: read`; write permissions are granted only to the OSV full-scan SARIF upload.
+- Workflow tokens default to no permissions or `contents: read`. The OSV reusable workflows require `security-events: write` in their caller permission contract; PR SARIF upload remains disabled, while the full scan uses that permission to upload SARIF.
 - Checkout credentials are not persisted in ordinary CI jobs.
 - `cargo audit` remains part of the normal cross-platform CI workflow.
 - `pnpm audit` is part of the desktop CI job and must report no known vulnerabilities.
