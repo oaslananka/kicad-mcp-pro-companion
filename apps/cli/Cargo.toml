@@ -26,6 +26,7 @@ companion-identity = { path = "../../crates/identity", features = ["test-util"] 
 companion-storage = { path = "../../crates/storage" }
 companion-sessions = { path = "../../crates/sessions" }
 companion-workspace = { path = "../../crates/workspace" }
+companion-core-bridge = { path = "../../crates/core-bridge", features = ["test-util"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
 time.workspace = true
 tempfile = "3"

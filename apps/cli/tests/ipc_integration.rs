@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use companion_core::config::{self, CliOverrides};
+use companion_core_bridge::MockMcpServer;
 use companion_identity::InMemorySecretStore;
 use companion_protocol::{IpcRequest, IpcResponse};
 use kicad_mcp_companion_cli::ipc_client::send_request;
@@ -33,6 +34,73 @@ fn spawn_test_daemon(cfg: companion_core::CompanionConfig) {
     tokio::spawn(async move {
         let _ = ipc_server::run_ipc_server(state, data_dir).await;
     });
+}
+
+fn run_setup_cli(data_dir: &Path) -> String {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_kicad-mcp-companion"))
+        .arg("--data-dir")
+        .arg(data_dir)
+        .arg("setup")
+        .output()
+        .expect("setup CLI process starts");
+    assert!(
+        output.status.success(),
+        "setup CLI failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("setup CLI writes UTF-8")
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn setup_reports_core_offline_when_daemon_cannot_reach_kicad_mcp_pro() {
+    let data_dir = fresh_data_dir();
+    let cfg = config::load(CliOverrides {
+        data_dir: Some(data_dir.clone()),
+        core_bridge_endpoint: Some("http://127.0.0.1:1/mcp".into()),
+        ..Default::default()
+    })
+    .unwrap();
+
+    spawn_test_daemon(cfg);
+    wait_for_daemon(&data_dir).await;
+
+    let stdout = run_setup_cli(&data_dir);
+    assert!(stdout.contains("✗ KiCad MCP Pro offline"), "{stdout}");
+    assert!(
+        !stdout.contains("detection is not implemented yet"),
+        "{stdout}"
+    );
+
+    send_request(&data_dir, IpcRequest::DaemonShutdown)
+        .await
+        .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn setup_reports_core_detected_when_daemon_reaches_kicad_mcp_pro() {
+    let server = MockMcpServer::start().await;
+    let data_dir = fresh_data_dir();
+    let cfg = config::load(CliOverrides {
+        data_dir: Some(data_dir.clone()),
+        core_bridge_endpoint: Some(server.endpoint().to_string()),
+        ..Default::default()
+    })
+    .unwrap();
+
+    spawn_test_daemon(cfg);
+    wait_for_daemon(&data_dir).await;
+
+    let stdout = run_setup_cli(&data_dir);
+    assert!(stdout.contains("✓ KiCad MCP Pro detected"), "{stdout}");
+    assert!(
+        !stdout.contains("detection is not implemented yet"),
+        "{stdout}"
+    );
+
+    send_request(&data_dir, IpcRequest::DaemonShutdown)
+        .await
+        .unwrap();
+    server.stop();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
