@@ -1,0 +1,235 @@
+# Maps kicad-mcp-pro MCP tool names to a required capability and a risk
+# classification. Any tool name not listed here is denied by
+# TomlToolRegistry::resolve — there is no fallback allow.
+#
+# Authorization allowlist only. Upstream discovery never grants access.
+# Drift is tracked separately in upstream_tool_snapshot.toml and checked by
+# crates/policy/tests/tool_registry.rs. Refresh the snapshot with the
+# reconcile-tool-registry binary documented in docs/development/testing.md.
+
+# --- Schematic ---
+
+[[tool]]
+name = "sch_get_symbols"
+capability = "schematic.read"
+risk = "low"
+
+[[tool]]
+name = "sch_get_circuit_ir"
+capability = "schematic.read"
+risk = "low"
+
+[[tool]]
+name = "sch_visual_qa"
+capability = "validation.run"
+risk = "low"
+
+[[tool]]
+name = "sch_add_symbol"
+capability = "schematic.write"
+risk = "normal"
+
+[[tool]]
+name = "sch_add_wire"
+capability = "schematic.write"
+risk = "normal"
+
+[[tool]]
+name = "sch_add_label"
+capability = "schematic.write"
+risk = "normal"
+
+[[tool]]
+name = "sch_add_power_symbol"
+capability = "schematic.write"
+risk = "normal"
+
+[[tool]]
+name = "sch_delete_symbol"
+capability = "schematic.write"
+risk = "normal"
+
+[[tool]]
+name = "sch_move_symbol"
+capability = "schematic.write"
+risk = "normal"
+
+[[tool]]
+name = "sch_annotate"
+capability = "schematic.write"
+risk = "normal"
+
+[[tool]]
+name = "sch_auto_place_symbols"
+capability = "schematic.write"
+risk = "normal"
+
+# --- PCB layout & routing ---
+
+[[tool]]
+name = "pcb_get_footprints"
+capability = "pcb.read"
+risk = "low"
+
+[[tool]]
+name = "pcb_get_nets"
+capability = "pcb.read"
+risk = "low"
+
+[[tool]]
+name = "pcb_add_track"
+capability = "pcb.write"
+risk = "normal"
+
+[[tool]]
+name = "pcb_add_via"
+capability = "pcb.write"
+risk = "normal"
+
+[[tool]]
+name = "pcb_add_zone"
+capability = "pcb.write"
+risk = "normal"
+
+[[tool]]
+name = "pcb_move_footprint"
+capability = "pcb.write"
+risk = "normal"
+
+[[tool]]
+name = "pcb_refill_zones"
+capability = "pcb.write"
+risk = "normal"
+
+[[tool]]
+name = "route_differential_pair"
+capability = "pcb.write"
+risk = "normal"
+
+[[tool]]
+name = "pcb_auto_place_by_schematic"
+capability = "pcb.write"
+risk = "high"
+
+[[tool]]
+name = "route_autoroute_freerouting"
+capability = "pcb.write"
+risk = "high"
+
+# --- ERC / DRC ---
+
+[[tool]]
+name = "run_erc"
+capability = "erc.run"
+risk = "normal"
+
+[[tool]]
+name = "run_drc"
+capability = "drc.run"
+risk = "normal"
+
+[[tool]]
+name = "drc_list_rules"
+capability = "validation.run"
+risk = "low"
+
+[[tool]]
+name = "drc_rule_create"
+capability = "pcb.write"
+risk = "normal"
+
+[[tool]]
+name = "erc_set_rule_severity"
+capability = "schematic.write"
+risk = "normal"
+
+[[tool]]
+name = "drc_add_exclusion"
+capability = "pcb.write"
+risk = "normal"
+
+# --- Validation & quality gates ---
+
+[[tool]]
+name = "validate_design"
+capability = "validation.run"
+risk = "low"
+
+[[tool]]
+name = "project_quality_gate"
+capability = "validation.run"
+risk = "low"
+
+[[tool]]
+name = "schematic_quality_gate"
+capability = "validation.run"
+risk = "low"
+
+[[tool]]
+name = "pcb_quality_gate"
+capability = "validation.run"
+risk = "low"
+
+[[tool]]
+name = "manufacturing_quality_gate"
+capability = "manufacturing.read"
+risk = "low"
+
+# --- Manufacturing & export ---
+
+[[tool]]
+name = "dfm_run_manufacturer_check"
+capability = "manufacturing.read"
+risk = "low"
+
+[[tool]]
+name = "export_bom"
+capability = "manufacturing.export"
+risk = "normal"
+
+[[tool]]
+name = "export_pick_and_place"
+capability = "manufacturing.export"
+risk = "normal"
+
+[[tool]]
+name = "export_gerber"
+capability = "manufacturing.export"
+risk = "high"
+
+[[tool]]
+name = "export_step"
+capability = "manufacturing.export"
+risk = "high"
+
+[[tool]]
+name = "export_manufacturing_package"
+capability = "manufacturing.export"
+risk = "high"
+
+# --- Project metadata & workspace ---
+
+[[tool]]
+name = "kicad_get_project_info"
+capability = "project.read"
+risk = "low"
+
+[[tool]]
+name = "project_get_design_intent"
+capability = "project.read"
+risk = "low"
+
+[[tool]]
+name = "project_professional_release_gate"
+capability = "manufacturing.read"
+risk = "low"
+
+[[tool]]
+name = "kicad_set_project"
+capability = "workspace.read"
+risk = "low"
+
+[[tool]]
+name = "project_set_design_intent"
+capability = "project.write"
+risk = "normal"
