@@ -24,6 +24,14 @@ sha2 = "0.10"
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = ["Win32_Security_Cryptography", "Win32_Foundation"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "=3.6.3", default-features = false, features = ["apple-native"] }
+# keyring 3.6.3 accepts security-framework 3.x; 3.7+ requires Rust 1.85.
+security-framework = "=3.6.0"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "=3.6.3", default-features = false, features = ["sync-secret-service", "crypto-rust", "vendored"] }
+
 [dev-dependencies]
 tempfile = "3"
 companion-identity = { path = ".", features = ["test-util"] }

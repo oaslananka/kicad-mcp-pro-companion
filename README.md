@@ -84,7 +84,7 @@ not a roadmap dressed up as a status:
 - ✅ Architecture, security, and protocol design docs.
 - ✅ Rust workspace scaffold and CI (Rust matrix + frontend job).
 - ✅ Domain model, SQLite storage + migrations, layered config.
-- ✅ Device identity (Ed25519, Windows DPAPI secret store), fingerprinting.
+- ✅ Device identity (Ed25519; Windows DPAPI, macOS Keychain, Linux Secret Service), fingerprinting.
 - ✅ Workspace path boundary enforcement (traversal/symlink/sibling-collision-proof).
 - ✅ Capability/risk model and deterministic policy engine.
 - ✅ Session state machine (explicit transitions, TTL, revoke-is-terminal).
@@ -104,10 +104,9 @@ not a roadmap dressed up as a status:
   allowlist is reconciled against a SHA-pinned upstream public-tool snapshot;
   live `tools/list` discovery can report drift but never grants capabilities.
 
-What's still ahead: macOS/Linux secret-store adapters, a real cloud
-relay/control plane (out of scope for this repo — see below), capability/risk
-classification of the currently unclassified upstream tools, and UI polish
-on the desktop shell.
+What's still ahead: a real cloud relay/control plane (out of scope for this
+repo — see below), capability/risk classification of the currently unclassified
+upstream tools, and UI polish on the desktop shell.
 
 ## Quick start for developers
 
@@ -172,9 +171,10 @@ sessions, daemon/CLI/IPC, core bridge, transport, audit/checkpoints,
 desktop) are complete, including an automated end-to-end vertical slice
 (Phase 10's core deliverable). Tracked in
 [the implementation plan](docs/superpowers/plans/2026-09-16-companion-v1.md).
-Remaining, tracked as follow-on work rather than blocking V1: macOS/Linux
-secret-store adapters, a real cloud relay (a separate future repository —
-see Out of scope), and desktop UI polish/manual QA in a live GUI session.
+Remaining, tracked as follow-on work rather than blocking V1: a real cloud
+relay (a separate future repository — see Out of scope), capability/risk
+classification of currently unclassified upstream tools, and desktop UI
+polish/manual QA in a live GUI session.
 
 ## Security review checklist
 

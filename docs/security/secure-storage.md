@@ -23,18 +23,28 @@ bytes, and is wrapped so it zeroizes on drop.
 
 | Platform | Production backend |
 |---|---|
-| Windows | DPAPI / Windows Credential Manager |
-| macOS | Keychain |
-| Linux | Secret Service (libsecret) |
+| Windows | DPAPI |
+| macOS | Keychain (`keyring` Apple-native backend) |
+| Linux | Secret Service over D-Bus (`keyring` synchronous backend, Rust crypto) |
 
-V1 targets the current development platform (Windows) first with a real
-DPAPI-backed adapter, plus a `InMemorySecretStore` that is explicitly
-`#[cfg(test)]`/test-only and documented as such. macOS/Linux adapters follow
-the same trait and are added without touching any caller. **No production
-code path silently falls back to plaintext storage if a platform adapter is
-unavailable** — if no adapter is configured for the running platform, device
-identity creation fails with a typed `IDENTITY_SECRET_STORE_UNAVAILABLE`
-error rather than degrading to plaintext.
+Production adapters are implemented for Windows, macOS, and Linux. Windows
+uses DPAPI; macOS uses the native Keychain provider; Linux uses the synchronous
+Secret Service provider over D-Bus with Rust crypto and vendored libdbus. The
+macOS/Linux adapter stores the raw 32-byte Ed25519 secret through the keyring
+binary-secret API under a fixed application service namespace and the local
+`DeviceId` as the account key. Access is serialized because the underlying
+platform stores do not guarantee reliable concurrent access to one credential.
+
+`InMemorySecretStore` remains explicitly test-only. **No production code path
+silently falls back to plaintext storage or to the keyring mock backend.** If a
+native credential service cannot be opened or an operation fails, identity
+creation/loading fails with a typed backend error rather than degrading to a
+file-based secret store. Unsupported operating systems still fail startup with
+`IDENTITY_SECRET_STORE_UNAVAILABLE`.
+
+The keyring integration is pinned to `keyring = 3.6.3`; on macOS,
+`security-framework = 3.6.0` is also pinned because later 3.x releases require
+a newer Rust toolchain than this repository's declared Rust 1.78 contract.
 
 ## Device identity lifecycle
 
