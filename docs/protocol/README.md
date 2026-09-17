@@ -13,8 +13,10 @@ pairing, session negotiation, or the operation envelope is a secret format.
    protocol; it does not extend or modify it. See
    [`crates/core-bridge`](../../crates/core-bridge).
 2. **Companion transport protocol**: the envelope Companion uses to talk to
-   a relay/cloud (today: an in-process mock; in production: a hosted relay
-   that is out of scope for this repository). See below.
+   a relay/cloud. The normal daemon starts with outbound transport disabled;
+   an in-process mock is available only when explicitly selected for local
+   development/testing. A production hosted relay is out of scope for this
+   repository. See below.
 
 ## Companion transport envelope (V1)
 

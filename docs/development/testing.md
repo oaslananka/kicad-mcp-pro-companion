@@ -54,7 +54,7 @@ advanced explicitly (`clock.advance(Duration)`); no test should depend on
 ## Integration coverage (minimum)
 
 - CLI ⇄ daemon local IPC (status, workspace, session, audit commands)
-- daemon ⇄ mock cloud transport (pairing, session request/approve/revoke)
+- daemon ⇄ explicitly enabled mock transport (session request/approve/revoke and reconnect lifecycle)
 - daemon ⇄ mock/fake kicad-mcp-pro endpoint (initialize, tools/list,
   tools/call, timeout, error mapping)
 - full pairing flow: unpaired → pending → paired

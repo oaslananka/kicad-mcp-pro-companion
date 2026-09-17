@@ -6,6 +6,8 @@ pub enum TransportError {
     ConnectFailed(String),
     #[error("send failed: {0}")]
     SendFailed(String),
+    #[error("receive failed: {0}")]
+    ReceiveFailed(String),
     #[error("no message available")]
     NoMessage,
     #[error("transport is not connected")]
@@ -17,6 +19,7 @@ impl CompanionError for TransportError {
         match self {
             TransportError::ConnectFailed(_) => "TRANSPORT_CONNECT_FAILED",
             TransportError::SendFailed(_) => "TRANSPORT_SEND_FAILED",
+            TransportError::ReceiveFailed(_) => "TRANSPORT_RECEIVE_FAILED",
             TransportError::NoMessage => "TRANSPORT_NO_MESSAGE",
             TransportError::NotConnected => "TRANSPORT_NOT_CONNECTED",
         }
@@ -25,7 +28,9 @@ impl CompanionError for TransportError {
     fn retryable(&self) -> bool {
         matches!(
             self,
-            TransportError::ConnectFailed(_) | TransportError::SendFailed(_)
+            TransportError::ConnectFailed(_)
+                | TransportError::SendFailed(_)
+                | TransportError::ReceiveFailed(_)
         )
     }
 }

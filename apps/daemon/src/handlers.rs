@@ -56,7 +56,7 @@ pub async fn handle_request(state: &Arc<DaemonState>, request: IpcRequest) -> Ip
             reason: _,
         } => deny_operation(state, operation_id).await,
         IpcRequest::DaemonShutdown => {
-            state.shutdown.notify_waiters();
+            state.shutdown.request();
             IpcResponse::Ack
         }
     }

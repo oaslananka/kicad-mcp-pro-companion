@@ -14,15 +14,16 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use companion_audit::AuditRepository;
-use companion_core::{CompanionConfig, SystemClock};
+use companion_core::{CompanionConfig, SystemClock, TransportMode};
 use companion_core_bridge::{CoreBridgeClient, CoreBridgeConfig};
 use companion_identity::{SecretStore, SqliteDeviceIdentityStore};
 use companion_policy::{PolicyEngine, TomlToolRegistry};
 use companion_sessions::SessionRepository;
 use companion_storage::Storage;
+use companion_transport::{jittered_delay, BackoffPolicy, MockTransport, Transport};
 use companion_workspace::WorkspaceRepository;
 
-use crate::state::DaemonState;
+use crate::state::{DaemonState, ShutdownSignal};
 
 const CORE_HEALTH_PROBE_TIMEOUT: Duration = Duration::from_millis(500);
 
@@ -83,10 +84,83 @@ fn build_state_from_parts(
         core_bridge,
         core_health_probe_config,
         clock: Arc::new(SystemClock),
-        shutdown: Arc::new(tokio::sync::Notify::new()),
+        shutdown: Arc::new(ShutdownSignal::new()),
         transport: std::sync::Mutex::new(None),
         pending_operations: std::sync::Mutex::new(HashMap::new()),
     }))
+}
+
+fn transport_for_mode(mode: TransportMode) -> Option<Arc<dyn Transport>> {
+    match mode {
+        TransportMode::Disabled => None,
+        TransportMode::Mock => Some(Arc::new(MockTransport::new())),
+    }
+}
+
+/// Owns the daemon's local IPC lifetime together with an optional outbound
+/// transport. A missing transport is a supported local-only mode.
+pub async fn run_runtime(
+    state: Arc<DaemonState>,
+    data_dir: std::path::PathBuf,
+    transport: Option<Arc<dyn Transport>>,
+) -> anyhow::Result<()> {
+    let Some(transport) = transport else {
+        return ipc_server::run_ipc_server(state, data_dir).await;
+    };
+
+    let ipc = ipc_server::run_ipc_server(Arc::clone(&state), data_dir);
+    let remote = run_transport_lifecycle(Arc::clone(&state), transport);
+    tokio::try_join!(ipc, remote)?;
+    Ok(())
+}
+
+async fn run_transport_lifecycle(
+    state: Arc<DaemonState>,
+    transport: Arc<dyn Transport>,
+) -> anyhow::Result<()> {
+    let backoff = BackoffPolicy::default();
+    let mut failure_attempt = 0u32;
+
+    loop {
+        let connect_result = tokio::select! {
+            _ = state.shutdown.cancelled() => break,
+            result = transport.connect() => result,
+        };
+
+        match connect_result {
+            Ok(()) => {
+                failure_attempt = 0;
+                let processor_result = remote_processor::run_remote_processor(
+                    Arc::clone(&state),
+                    Arc::clone(&transport),
+                )
+                .await;
+                if let Err(error) = processor_result {
+                    tracing::warn!(error = %error, "outbound transport receive failed; reconnecting");
+                }
+                *state.transport.lock().expect("transport mutex poisoned") = None;
+                if let Err(error) = transport.disconnect().await {
+                    tracing::warn!(error = %error, "outbound transport disconnect failed");
+                }
+                if state.shutdown.is_requested() {
+                    break;
+                }
+            }
+            Err(error) => {
+                tracing::warn!(error = %error, "outbound transport connect failed; retrying");
+            }
+        }
+
+        let delay = jittered_delay(backoff.delay_for_attempt(failure_attempt), failure_attempt);
+        failure_attempt = failure_attempt.saturating_add(1);
+        tokio::select! {
+            _ = state.shutdown.cancelled() => break,
+            _ = tokio::time::sleep(delay) => {}
+        }
+    }
+
+    *state.transport.lock().expect("transport mutex poisoned") = None;
+    Ok(())
 }
 
 /// Runs the daemon until shutdown is requested (via `DaemonShutdown` IPC
@@ -96,16 +170,51 @@ pub async fn run(config: CompanionConfig) -> anyhow::Result<()> {
     let state = build_state(&config)?;
     tracing::info!(data_dir = %config.data_dir.display(), "daemon starting");
 
-    let shutdown = Arc::clone(&state.shutdown);
-    tokio::select! {
-        result = ipc_server::run_ipc_server(Arc::clone(&state), config.data_dir.clone()) => {
-            result?;
+    let transport = transport_for_mode(config.transport_mode);
+    match config.transport_mode {
+        TransportMode::Disabled => {
+            tracing::info!("outbound relay transport disabled; local IPC remains available");
         }
-        _ = tokio::signal::ctrl_c() => {
-            tracing::info!("received ctrl-c, shutting down");
-            shutdown.notify_waiters();
+        TransportMode::Mock => {
+            tracing::warn!(
+                "explicit development mock transport enabled; no production relay is configured"
+            );
         }
     }
 
-    Ok(())
+    let shutdown = Arc::clone(&state.shutdown);
+    let runtime = run_runtime(Arc::clone(&state), config.data_dir.clone(), transport);
+    tokio::pin!(runtime);
+
+    tokio::select! {
+        result = &mut runtime => result,
+        signal = tokio::signal::ctrl_c() => {
+            signal?;
+            tracing::info!("received ctrl-c, shutting down");
+            shutdown.request();
+            runtime.await
+        }
+    }
+}
+
+#[cfg(test)]
+mod runtime_mode_tests {
+    use companion_core::TransportMode;
+
+    use super::*;
+
+    #[test]
+    fn disabled_transport_mode_builds_no_outbound_transport() {
+        assert!(transport_for_mode(TransportMode::Disabled).is_none());
+    }
+
+    #[test]
+    fn explicit_mock_transport_mode_builds_a_disconnected_mock_transport() {
+        let transport = transport_for_mode(TransportMode::Mock)
+            .expect("explicit mock mode should build a development transport");
+        assert_eq!(
+            transport.state(),
+            companion_core::TransportState::Disconnected
+        );
+    }
 }

@@ -16,6 +16,7 @@ use crate::transport::{Transport, TransportHealth};
 pub struct MockTransport {
     state: Mutex<TransportState>,
     connect_failures_remaining: Mutex<u32>,
+    receive_failures_remaining: Mutex<u32>,
     connect_attempts: AtomicU32,
     outbox: Mutex<VecDeque<Envelope>>,
     inbox: Mutex<VecDeque<Envelope>>,
@@ -26,6 +27,7 @@ impl Default for MockTransport {
         Self {
             state: Mutex::new(TransportState::Disconnected),
             connect_failures_remaining: Mutex::new(0),
+            receive_failures_remaining: Mutex::new(0),
             connect_attempts: AtomicU32::new(0),
             outbox: Mutex::new(VecDeque::new()),
             inbox: Mutex::new(VecDeque::new()),
@@ -49,6 +51,13 @@ impl MockTransport {
 
     pub fn connect_attempt_count(&self) -> u32 {
         self.connect_attempts.load(Ordering::SeqCst)
+    }
+
+    pub fn fail_next_receives(&self, n: u32) {
+        *self
+            .receive_failures_remaining
+            .lock()
+            .expect("mock mutex poisoned") = n;
     }
 
     pub fn push_incoming(&self, envelope: Envelope) {
@@ -104,6 +113,19 @@ impl Transport for MockTransport {
     }
 
     async fn receive(&self) -> Result<Envelope, TransportError> {
+        let mut remaining = self
+            .receive_failures_remaining
+            .lock()
+            .expect("mock mutex poisoned");
+        if *remaining > 0 {
+            *remaining -= 1;
+            *self.state.lock().expect("mock mutex poisoned") = TransportState::Failed;
+            return Err(TransportError::ReceiveFailed(
+                "scripted mock receive failure".into(),
+            ));
+        }
+        drop(remaining);
+
         self.inbox
             .lock()
             .expect("mock mutex poisoned")
@@ -153,6 +175,20 @@ mod tests {
             .send(Envelope::new(MessageType::Heartbeat, json!({})))
             .await;
         assert!(matches!(result, Err(TransportError::NotConnected)));
+    }
+
+    #[tokio::test]
+    async fn scripted_receive_failure_marks_transport_failed_then_can_reconnect() {
+        let transport = MockTransport::new();
+        transport.connect().await.unwrap();
+        transport.fail_next_receives(1);
+
+        let result = transport.receive().await;
+        assert!(matches!(result, Err(TransportError::ReceiveFailed(_))));
+        assert_eq!(transport.state(), TransportState::Failed);
+
+        transport.connect().await.unwrap();
+        assert_eq!(transport.state(), TransportState::Connected);
     }
 
     #[tokio::test]

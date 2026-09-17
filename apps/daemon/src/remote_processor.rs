@@ -31,7 +31,10 @@ struct SessionRequestPayload {
     ttl_minutes: i64,
 }
 
-pub async fn run_remote_processor(state: Arc<DaemonState>, transport: Arc<dyn Transport>) {
+pub async fn run_remote_processor(
+    state: Arc<DaemonState>,
+    transport: Arc<dyn Transport>,
+) -> Result<(), TransportError> {
     *state.transport.lock().expect("transport mutex poisoned") = Some(Arc::clone(&transport));
     let shutdown = Arc::clone(&state.shutdown);
 
@@ -53,10 +56,10 @@ pub async fn run_remote_processor(state: Arc<DaemonState>, transport: Arc<dyn Tr
                     Err(TransportError::NoMessage) => {
                         tokio::time::sleep(Duration::from_millis(20)).await;
                     }
-                    Err(_) => return,
+                    Err(error) => return Err(error),
                 }
             }
-            _ = shutdown.notified() => return,
+            _ = shutdown.cancelled() => return Ok(()),
         }
     }
 }
@@ -665,6 +668,18 @@ mod device_binding_tests {
 
         assert_eq!(fake_kicad.tool_call_count(), 0);
         fake_kicad.stop();
+    }
+
+    #[tokio::test]
+    async fn receive_failure_is_returned_to_the_runtime_supervisor() {
+        let state = build_test_state("http://127.0.0.1:9/mcp".into());
+        let relay = Arc::new(MockTransport::new());
+        relay.connect().await.unwrap();
+        relay.fail_next_receives(1);
+        let transport: Arc<dyn Transport> = relay;
+
+        let result = run_remote_processor(state, transport).await;
+        assert!(matches!(result, Err(TransportError::ReceiveFailed(_))));
     }
 
     #[test]

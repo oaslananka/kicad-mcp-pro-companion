@@ -15,6 +15,7 @@ use crate::error::CompanionError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransportMode {
+    Disabled,
     Mock,
 }
 
@@ -23,6 +24,7 @@ impl FromStr for TransportMode {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
+            "disabled" => Ok(TransportMode::Disabled),
             "mock" => Ok(TransportMode::Mock),
             other => Err(ConfigError::InvalidTransportMode(other.to_string())),
         }
@@ -68,7 +70,7 @@ impl CompanionError for ConfigError {
 
 const DEFAULT_LOG_LEVEL: &str = "info";
 const DEFAULT_CORE_BRIDGE_ENDPOINT: &str = "http://127.0.0.1:3334/mcp";
-const DEFAULT_TRANSPORT_MODE: TransportMode = TransportMode::Mock;
+const DEFAULT_TRANSPORT_MODE: TransportMode = TransportMode::Disabled;
 const ENV_DATA_DIR: &str = "COMPANION_DATA_DIR";
 const ENV_LOG_LEVEL: &str = "COMPANION_LOG_LEVEL";
 const ENV_CORE_BRIDGE_ENDPOINT: &str = "COMPANION_CORE_BRIDGE_ENDPOINT";
@@ -137,6 +139,14 @@ mod tests {
             config.core_bridge_endpoint.as_str(),
             "http://127.0.0.1:3334/mcp"
         );
+        assert_eq!(config.transport_mode, TransportMode::Disabled);
+    }
+
+    #[test]
+    fn mock_transport_requires_explicit_configuration() {
+        let mut env = HashMap::new();
+        env.insert(ENV_TRANSPORT_MODE.to_string(), "mock".to_string());
+        let config = load_from(CliOverrides::default(), &env).unwrap();
         assert_eq!(config.transport_mode, TransportMode::Mock);
     }
 
