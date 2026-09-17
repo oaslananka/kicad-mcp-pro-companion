@@ -36,6 +36,10 @@ We aim to acknowledge reports within 5 business days. Disclosure timing is
 coordinated with the reporter; we ask for a reasonable window to ship a fix
 before public disclosure.
 
+## Automated dependency and workflow checks
+
+Repository CI includes cargo-audit, pnpm audit, OSV-Scanner, Dependency Review, and zizmor. The current configuration and any explicitly time-bounded dependency risk exceptions are documented in [`docs/development/security-automation.md`](docs/development/security-automation.md).
+
 ## Scope
 
 In scope: this repository (daemon, CLI, desktop shell, all `crates/*`).
