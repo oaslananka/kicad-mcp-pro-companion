@@ -26,8 +26,6 @@ windows = { version = "0.58", features = ["Win32_Security_Cryptography", "Win32_
 
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "=3.6.3", default-features = false, features = ["apple-native"] }
-# keyring 3.6.3 accepts security-framework 3.x; 3.7+ requires Rust 1.85.
-security-framework = "=3.6.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { version = "=3.6.3", default-features = false, features = ["sync-secret-service", "crypto-rust", "vendored"] }
