@@ -18,5 +18,6 @@ time.workspace = true
 ulid.workspace = true
 url.workspace = true
 dirs.workspace = true
+toml.workspace = true
 
 [dev-dependencies]
