@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use companion_audit::AuditRepository;
 use companion_core::{Capability, Clock, OperationId, OperationRequest, RiskLevel};
-use companion_core_bridge::CoreBridgeClient;
+use companion_core_bridge::{CoreBridgeClient, CoreBridgeConfig};
 use companion_identity::DeviceIdentityStore;
 use companion_policy::{PolicyEngine, TomlToolRegistry};
 use companion_sessions::SessionRepository;
@@ -32,6 +32,9 @@ pub struct DaemonState {
     pub policy_engine: Arc<PolicyEngine<TomlToolRegistry>>,
     pub audit_repo: Arc<AuditRepository>,
     pub core_bridge: Arc<CoreBridgeClient>,
+    /// One-shot status probes build a separate client from this config so
+    /// health checks cannot mutate the operation bridge's MCP session.
+    pub core_health_probe_config: CoreBridgeConfig,
     pub clock: Arc<dyn Clock>,
     pub shutdown: Arc<tokio::sync::Notify>,
     /// Set once a (mock or, in future, real) relay transport is connected.

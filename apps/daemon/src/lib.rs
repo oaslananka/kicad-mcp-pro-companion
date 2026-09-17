@@ -11,6 +11,7 @@ pub mod tool_reconciliation;
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use companion_audit::AuditRepository;
 use companion_core::{CompanionConfig, SystemClock};
@@ -22,6 +23,8 @@ use companion_storage::Storage;
 use companion_workspace::WorkspaceRepository;
 
 use crate::state::DaemonState;
+
+const CORE_HEALTH_PROBE_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// Builds daemon state in the documented startup order: storage, identity,
 /// then the repositories/engines that depend on storage. Returns the state
@@ -67,6 +70,8 @@ fn build_state_from_parts(
     let core_bridge = Arc::new(CoreBridgeClient::new(CoreBridgeConfig::new(
         config.core_bridge_endpoint.clone(),
     ))?);
+    let mut core_health_probe_config = CoreBridgeConfig::new(config.core_bridge_endpoint.clone());
+    core_health_probe_config.timeout = CORE_HEALTH_PROBE_TIMEOUT;
 
     Ok(Arc::new(DaemonState {
         storage,
@@ -76,6 +81,7 @@ fn build_state_from_parts(
         policy_engine,
         audit_repo,
         core_bridge,
+        core_health_probe_config,
         clock: Arc::new(SystemClock),
         shutdown: Arc::new(tokio::sync::Notify::new()),
         transport: std::sync::Mutex::new(None),

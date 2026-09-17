@@ -8,6 +8,7 @@
 use std::sync::Arc;
 
 use companion_core::{OperationId, Session, SessionId, SessionStatus, WorkspaceId};
+use companion_core_bridge::CoreBridgeClient;
 use companion_protocol::{
     AuditSummaryView, DaemonStatusView, IpcRequest, IpcResponse, PairingBegunView,
     PairingStatusView, PendingApprovalView, SessionView, WorkspaceView,
@@ -93,11 +94,11 @@ fn to_workspace_view(workspace: &WorkspaceAuthorization) -> WorkspaceView {
 }
 
 async fn status(state: &Arc<DaemonState>) -> IpcResponse {
-    let state = Arc::clone(state);
+    let state_for_db = Arc::clone(state);
     let result = tokio::task::spawn_blocking(move || {
-        let identity = state.identity_store.public_identity()?;
-        let active_sessions = state.session_repo.list_active()?;
-        let workspaces = state.workspace_repo.list()?;
+        let identity = state_for_db.identity_store.public_identity()?;
+        let active_sessions = state_for_db.session_repo.list_active()?;
+        let workspaces = state_for_db.workspace_repo.list()?;
         Ok::<_, DaemonError>((identity, active_sessions.len(), workspaces.len()))
     })
     .await;
@@ -105,14 +106,15 @@ async fn status(state: &Arc<DaemonState>) -> IpcResponse {
     match result {
         Ok(Ok((identity, active_session_count, workspace_count))) => {
             let paired = identity.is_some();
+            let core_bridge_reachable =
+                match CoreBridgeClient::new(state.core_health_probe_config.clone()) {
+                    Ok(client) => client.initialize("status-core-health").await.is_ok(),
+                    Err(_) => false,
+                };
             IpcResponse::Status(DaemonStatusView {
                 device_fingerprint: identity.map(|i| i.fingerprint.0),
                 paired,
-                // A real reachability probe would add network latency to
-                // every status poll; Status intentionally reports the
-                // static "not checked" value rather than pinging
-                // kicad-mcp-pro on every call.
-                core_bridge_reachable: false,
+                core_bridge_reachable,
                 active_session_count,
                 workspace_count,
             })
