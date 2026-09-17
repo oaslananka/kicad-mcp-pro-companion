@@ -233,3 +233,143 @@ risk = "low"
 name = "project_set_design_intent"
 capability = "project.write"
 risk = "normal"
+
+
+# --- Conservative read-only upstream batch ---
+#
+# These tools are present in the SHA-pinned upstream snapshot and are marked
+# readOnly=yes, destructive=no, openWorld=no, idempotent=yes in that pinned
+# tools reference. Workspace/global discovery tools remain deliberately absent.
+
+# Server/tool metadata (does not enumerate project paths or arbitrary files).
+
+[[tool]]
+name = "kicad_get_server_info"
+capability = "project.read"
+risk = "low"
+
+[[tool]]
+name = "kicad_get_tools_in_category"
+capability = "project.read"
+risk = "low"
+
+[[tool]]
+name = "kicad_get_version"
+capability = "project.read"
+risk = "low"
+
+[[tool]]
+name = "kicad_help"
+capability = "project.read"
+risk = "low"
+
+[[tool]]
+name = "kicad_list_tool_categories"
+capability = "project.read"
+risk = "low"
+
+# Active PCB inspection.
+
+[[tool]]
+name = "get_board_stats"
+capability = "pcb.read"
+risk = "low"
+
+[[tool]]
+name = "pcb_get_board_summary"
+capability = "pcb.read"
+risk = "low"
+
+[[tool]]
+name = "pcb_get_layers"
+capability = "pcb.read"
+risk = "low"
+
+[[tool]]
+name = "pcb_get_net_statistics"
+capability = "pcb.read"
+risk = "low"
+
+[[tool]]
+name = "pcb_get_pads"
+capability = "pcb.read"
+risk = "low"
+
+[[tool]]
+name = "pcb_get_stackup"
+capability = "pcb.read"
+risk = "low"
+
+[[tool]]
+name = "pcb_get_tracks"
+capability = "pcb.read"
+risk = "low"
+
+[[tool]]
+name = "pcb_get_vias"
+capability = "pcb.read"
+risk = "low"
+
+[[tool]]
+name = "pcb_get_zones"
+capability = "pcb.read"
+risk = "low"
+
+# Active schematic inspection.
+
+[[tool]]
+name = "sch_get_bounding_boxes"
+capability = "schematic.read"
+risk = "low"
+
+[[tool]]
+name = "sch_get_connectivity_graph"
+capability = "schematic.read"
+risk = "low"
+
+[[tool]]
+name = "sch_get_labels"
+capability = "schematic.read"
+risk = "low"
+
+[[tool]]
+name = "sch_get_net_names"
+capability = "schematic.read"
+risk = "low"
+
+[[tool]]
+name = "sch_get_population_status"
+capability = "schematic.read"
+risk = "low"
+
+[[tool]]
+name = "sch_get_wires"
+capability = "schematic.read"
+risk = "low"
+
+# Read-only validation/result inspection.
+
+[[tool]]
+name = "drc_list_exclusions"
+capability = "validation.run"
+risk = "low"
+
+[[tool]]
+name = "get_courtyard_violations"
+capability = "validation.run"
+risk = "low"
+
+[[tool]]
+name = "get_silk_to_pad_violations"
+capability = "validation.run"
+risk = "low"
+
+[[tool]]
+name = "get_unconnected_nets"
+capability = "validation.run"
+risk = "low"
+
+[[tool]]
+name = "validate_footprints_vs_schematic"
+capability = "validation.run"
+risk = "low"
