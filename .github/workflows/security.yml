@@ -51,11 +51,10 @@ jobs:
 
   osv-pr:
     name: security / osv-pr
-    if: github.event_name != 'workflow_dispatch'
+    if: github.event_name == 'pull_request'
     permissions:
       actions: read # required by the reusable OSV workflow
       contents: read # required to scan repository lockfiles
-      security-events: write # reusable workflow contract; SARIF upload is disabled on PRs
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
     with:
       fail-on-vuln: true
