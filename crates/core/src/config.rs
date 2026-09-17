@@ -1,14 +1,15 @@
-//! Layered configuration: CLI flags > environment variables > defaults.
+//! Layered configuration: CLI flags > environment variables > config file > defaults.
 //!
-//! `load_from` is the pure, testable core (takes an explicit env map so
-//! tests never mutate real process environment variables, which would be
-//! unsound under parallel test execution). `load` is the thin production
-//! entry point that reads real environment variables.
+//! `load` resolves `data_dir` from CLI/env/defaults first, then reads
+//! `<data_dir>/config.toml`. The internal source resolver keeps precedence
+//! deterministic without mutating process environment variables in tests.
 
 use std::collections::HashMap;
+use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
 
+use serde::Deserialize;
 use url::Url;
 
 use crate::error::CompanionError;
@@ -53,6 +54,10 @@ pub enum ConfigError {
     InvalidEndpoint(String),
     #[error("invalid transport mode: {0}")]
     InvalidTransportMode(String),
+    #[error("invalid config file")]
+    InvalidConfigFile,
+    #[error("failed to read config file {path}: {message}")]
+    ConfigFileRead { path: PathBuf, message: String },
 }
 
 impl CompanionError for ConfigError {
@@ -60,6 +65,8 @@ impl CompanionError for ConfigError {
         match self {
             ConfigError::InvalidEndpoint(_) => "CONFIG_INVALID_ENDPOINT",
             ConfigError::InvalidTransportMode(_) => "CONFIG_INVALID_TRANSPORT_MODE",
+            ConfigError::InvalidConfigFile => "CONFIG_INVALID_FILE",
+            ConfigError::ConfigFileRead { .. } => "CONFIG_FILE_READ_FAILED",
         }
     }
 
@@ -80,27 +87,68 @@ const ENV_TRANSPORT_MODE: &str = "COMPANION_TRANSPORT_MODE";
 /// `overrides`.
 pub fn load(overrides: CliOverrides) -> Result<CompanionConfig, ConfigError> {
     let env: HashMap<String, String> = std::env::vars().collect();
-    load_from(overrides, &env)
+    load_with_env(overrides, &env)
 }
 
-/// Pure precedence resolution: `overrides` > `env` > built-in defaults.
+fn load_with_env(
+    overrides: CliOverrides,
+    env: &HashMap<String, String>,
+) -> Result<CompanionConfig, ConfigError> {
+    let data_dir = resolved_data_dir(&overrides, env);
+    let path = data_dir.join("config.toml");
+    let file_contents = match fs::read_to_string(&path) {
+        Ok(contents) => Some(contents),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
+        Err(err) => {
+            return Err(ConfigError::ConfigFileRead {
+                path,
+                message: err.to_string(),
+            });
+        }
+    };
+
+    load_from_sources(overrides, env, file_contents.as_deref())
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct FileConfig {
+    log_level: Option<String>,
+    core_bridge_endpoint: Option<String>,
+    transport_mode: Option<String>,
+}
+
+/// Pure precedence resolution without a file layer: `overrides` > `env` > defaults.
 pub fn load_from(
     overrides: CliOverrides,
     env: &HashMap<String, String>,
 ) -> Result<CompanionConfig, ConfigError> {
-    let data_dir = overrides
-        .data_dir
-        .or_else(|| env.get(ENV_DATA_DIR).map(PathBuf::from))
-        .unwrap_or_else(default_data_dir);
+    load_from_sources(overrides, env, None)
+}
+
+fn load_from_sources(
+    overrides: CliOverrides,
+    env: &HashMap<String, String>,
+    file_contents: Option<&str>,
+) -> Result<CompanionConfig, ConfigError> {
+    let file = match file_contents {
+        Some(contents) => {
+            toml::from_str::<FileConfig>(contents).map_err(|_| ConfigError::InvalidConfigFile)?
+        }
+        None => FileConfig::default(),
+    };
+
+    let data_dir = resolved_data_dir(&overrides, env);
 
     let log_level = overrides
         .log_level
         .or_else(|| env.get(ENV_LOG_LEVEL).cloned())
+        .or(file.log_level)
         .unwrap_or_else(|| DEFAULT_LOG_LEVEL.to_string());
 
     let endpoint_str = overrides
         .core_bridge_endpoint
         .or_else(|| env.get(ENV_CORE_BRIDGE_ENDPOINT).cloned())
+        .or(file.core_bridge_endpoint)
         .unwrap_or_else(|| DEFAULT_CORE_BRIDGE_ENDPOINT.to_string());
     let core_bridge_endpoint = Url::parse(&endpoint_str)
         .map_err(|_| ConfigError::InvalidEndpoint(endpoint_str.clone()))?;
@@ -109,7 +157,10 @@ pub fn load_from(
         Some(mode) => mode,
         None => match env.get(ENV_TRANSPORT_MODE) {
             Some(raw) => raw.parse()?,
-            None => DEFAULT_TRANSPORT_MODE,
+            None => match file.transport_mode {
+                Some(raw) => raw.parse()?,
+                None => DEFAULT_TRANSPORT_MODE,
+            },
         },
     };
 
@@ -119,6 +170,14 @@ pub fn load_from(
         core_bridge_endpoint,
         transport_mode,
     })
+}
+
+fn resolved_data_dir(overrides: &CliOverrides, env: &HashMap<String, String>) -> PathBuf {
+    overrides
+        .data_dir
+        .clone()
+        .or_else(|| env.get(ENV_DATA_DIR).map(PathBuf::from))
+        .unwrap_or_else(default_data_dir)
 }
 
 fn default_data_dir() -> PathBuf {
@@ -208,9 +267,113 @@ mod tests {
     }
 
     #[test]
+    fn missing_config_file_uses_defaults() {
+        let dir = std::env::temp_dir().join(format!(
+            "companion-config-missing-{}-{}",
+            std::process::id(),
+            ulid::Ulid::new()
+        ));
+
+        let mut env = HashMap::new();
+        env.insert(ENV_DATA_DIR.to_string(), dir.to_string_lossy().into_owned());
+
+        let config = load_with_env(CliOverrides::default(), &env).expect("missing file is allowed");
+        assert_eq!(config.data_dir, dir);
+        assert_eq!(config.log_level, DEFAULT_LOG_LEVEL);
+        assert_eq!(config.transport_mode, DEFAULT_TRANSPORT_MODE);
+    }
+
+    #[test]
+    fn load_with_env_reads_config_from_resolved_data_dir() {
+        let dir = std::env::temp_dir().join(format!(
+            "companion-config-test-{}-{}",
+            std::process::id(),
+            ulid::Ulid::new()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("config.toml"), "log_level = \"debug\"\n").unwrap();
+
+        let mut env = HashMap::new();
+        env.insert(ENV_DATA_DIR.to_string(), dir.to_string_lossy().into_owned());
+
+        let config = load_with_env(CliOverrides::default(), &env).expect("file config loads");
+        assert_eq!(config.data_dir, dir);
+        assert_eq!(config.log_level, "debug");
+
+        std::fs::remove_dir_all(config.data_dir).unwrap();
+    }
+
+    #[test]
+    fn env_overrides_file_value() {
+        let mut env = HashMap::new();
+        env.insert(ENV_LOG_LEVEL.to_string(), "debug".to_string());
+
+        let config = load_from_sources(
+            CliOverrides::default(),
+            &env,
+            Some("log_level = \"warn\"\n"),
+        )
+        .unwrap();
+
+        assert_eq!(config.log_level, "debug");
+    }
+
+    #[test]
+    fn cli_overrides_env_and_file_value() {
+        let mut env = HashMap::new();
+        env.insert(ENV_LOG_LEVEL.to_string(), "debug".to_string());
+        let overrides = CliOverrides {
+            log_level: Some("trace".to_string()),
+            ..Default::default()
+        };
+
+        let config = load_from_sources(overrides, &env, Some("log_level = \"warn\"\n")).unwrap();
+
+        assert_eq!(config.log_level, "trace");
+    }
+
+    #[test]
+    fn malformed_file_returns_typed_error() {
+        let result = load_from_sources(
+            CliOverrides::default(),
+            &HashMap::new(),
+            Some("log_level = ["),
+        );
+
+        assert_eq!(result, Err(ConfigError::InvalidConfigFile));
+    }
+
+    #[test]
+    fn file_values_override_defaults() {
+        let file = r#"
+log_level = "debug"
+core_bridge_endpoint = "http://127.0.0.1:4444/mcp"
+transport_mode = "mock"
+"#;
+
+        let config = load_from_sources(CliOverrides::default(), &HashMap::new(), Some(file))
+            .expect("valid config file");
+
+        assert_eq!(config.log_level, "debug");
+        assert_eq!(
+            config.core_bridge_endpoint.as_str(),
+            "http://127.0.0.1:4444/mcp"
+        );
+        assert_eq!(config.transport_mode, TransportMode::Mock);
+    }
+
+    #[test]
     fn error_codes_are_stable_and_not_retryable() {
-        let err = ConfigError::InvalidEndpoint("x".into());
-        assert_eq!(err.code(), "CONFIG_INVALID_ENDPOINT");
-        assert!(!err.retryable());
+        let endpoint = ConfigError::InvalidEndpoint("x".into());
+        assert_eq!(endpoint.code(), "CONFIG_INVALID_ENDPOINT");
+        assert!(!endpoint.retryable());
+
+        assert_eq!(ConfigError::InvalidConfigFile.code(), "CONFIG_INVALID_FILE");
+        let read = ConfigError::ConfigFileRead {
+            path: PathBuf::from("config.toml"),
+            message: "denied".to_string(),
+        };
+        assert_eq!(read.code(), "CONFIG_FILE_READ_FAILED");
+        assert!(!read.retryable());
     }
 }

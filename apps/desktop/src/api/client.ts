@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  ConfigView,
   AuditSummaryView,
   DaemonStatusView,
   PairingBegunView,
@@ -34,4 +35,5 @@ export const api = {
   listPendingApprovals: () => invoke<PendingApprovalView[]>("list_pending_approvals"),
   approveOperation: (operationId: string) => invoke<void>("approve_operation", { operationId }),
   denyOperation: (operationId: string, reason: string) => invoke<void>("deny_operation", { operationId, reason }),
+  getConfig: () => invoke<ConfigView>("get_config"),
 };

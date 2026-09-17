@@ -147,6 +147,9 @@ jobs:
         run: pnpm lint
 
       - working-directory: apps/desktop
+        run: pnpm test
+
+      - working-directory: apps/desktop
         run: pnpm build
 
       - name: cargo fmt --check (src-tauri)

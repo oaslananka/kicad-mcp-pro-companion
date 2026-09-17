@@ -48,3 +48,11 @@ export interface PendingApprovalView {
   tool_name: string;
   risk: string;
 }
+
+
+export interface ConfigView {
+  data_dir: string;
+  log_level: string;
+  core_bridge_endpoint: string;
+  transport_mode: string;
+}

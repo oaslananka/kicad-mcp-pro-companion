@@ -1,8 +1,7 @@
+/// <reference types="vitest" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// Tauri expects a fixed dev server port and a relative base so the built
-// assets load correctly from the webview's custom protocol.
 export default defineConfig({
   plugins: [react()],
   clearScreen: false,
@@ -15,5 +14,10 @@ export default defineConfig({
     target: "es2021",
     outDir: "dist",
     sourcemap: true,
+  },
+  test: {
+    globals: true,
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
   },
 });
