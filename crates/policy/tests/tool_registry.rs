@@ -28,6 +28,51 @@ fn embedded_tool_registry_denies_unknown_tool() {
 }
 
 #[test]
+fn embedded_registry_classifies_conservative_read_only_batch() {
+    use companion_core::{Capability, RiskLevel};
+
+    let registry = TomlToolRegistry::embedded();
+    let cases = [
+        ("kicad_get_server_info", Capability::PROJECT_READ),
+        ("kicad_get_tools_in_category", Capability::PROJECT_READ),
+        ("kicad_get_version", Capability::PROJECT_READ),
+        ("kicad_help", Capability::PROJECT_READ),
+        ("kicad_list_tool_categories", Capability::PROJECT_READ),
+        ("get_board_stats", Capability::PCB_READ),
+        ("pcb_get_board_summary", Capability::PCB_READ),
+        ("pcb_get_layers", Capability::PCB_READ),
+        ("pcb_get_net_statistics", Capability::PCB_READ),
+        ("pcb_get_pads", Capability::PCB_READ),
+        ("pcb_get_stackup", Capability::PCB_READ),
+        ("pcb_get_tracks", Capability::PCB_READ),
+        ("pcb_get_vias", Capability::PCB_READ),
+        ("pcb_get_zones", Capability::PCB_READ),
+        ("sch_get_bounding_boxes", Capability::SCHEMATIC_READ),
+        ("sch_get_connectivity_graph", Capability::SCHEMATIC_READ),
+        ("sch_get_labels", Capability::SCHEMATIC_READ),
+        ("sch_get_net_names", Capability::SCHEMATIC_READ),
+        ("sch_get_population_status", Capability::SCHEMATIC_READ),
+        ("sch_get_wires", Capability::SCHEMATIC_READ),
+        ("drc_list_exclusions", Capability::VALIDATION_RUN),
+        ("get_courtyard_violations", Capability::VALIDATION_RUN),
+        ("get_silk_to_pad_violations", Capability::VALIDATION_RUN),
+        ("get_unconnected_nets", Capability::VALIDATION_RUN),
+        (
+            "validate_footprints_vs_schematic",
+            Capability::VALIDATION_RUN,
+        ),
+    ];
+
+    for (tool, capability) in cases {
+        assert_eq!(
+            registry.resolve(tool),
+            Some((capability, RiskLevel::Low)),
+            "unexpected classification for {tool}"
+        );
+    }
+}
+
+#[test]
 fn coverage_report_separates_classified_unclassified_and_stale_tools() {
     let registry = TomlToolRegistry::from_toml_str(
         r#"
@@ -71,9 +116,17 @@ fn embedded_registry_has_no_entries_missing_from_upstream_snapshot() {
 }
 
 #[test]
-fn unclassified_upstream_tool_remains_fail_closed() {
+fn deliberately_excluded_discovery_tools_remain_fail_closed() {
     let registry = TomlToolRegistry::embedded();
     let snapshot = ToolCatalogSnapshot::embedded();
-    assert!(snapshot.contains("kicad_get_version"));
-    assert_eq!(registry.resolve("kicad_get_version"), None);
+
+    for tool in [
+        "kicad_list_recent_projects",
+        "kicad_scan_directory",
+        "lib_list_libraries",
+        "lib_search_3d_models",
+    ] {
+        assert!(snapshot.contains(tool), "snapshot should contain {tool}");
+        assert_eq!(registry.resolve(tool), None, "{tool} must remain denied");
+    }
 }

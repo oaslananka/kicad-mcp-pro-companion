@@ -154,6 +154,26 @@ async fn deny_operation(operation_id: OperationId, reason: String) -> Result<(),
     .map(|_| ())
 }
 
+#[derive(serde::Serialize)]
+pub struct ConfigView {
+    pub data_dir: String,
+    pub log_level: String,
+    pub core_bridge_endpoint: String,
+    pub transport_mode: String,
+}
+
+#[tauri::command]
+fn get_config() -> Result<ConfigView, String> {
+    let cfg = companion_core::config::load(companion_core::config::CliOverrides::default())
+        .map_err(|e| e.to_string())?;
+    Ok(ConfigView {
+        data_dir: cfg.data_dir.to_string_lossy().into_owned(),
+        log_level: cfg.log_level,
+        core_bridge_endpoint: cfg.core_bridge_endpoint.to_string(),
+        transport_mode: cfg.transport_mode.to_string(),
+    })
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
@@ -173,6 +193,7 @@ fn main() {
             list_pending_approvals,
             approve_operation,
             deny_operation,
+            get_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the companion desktop shell");

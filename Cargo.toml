@@ -21,6 +21,7 @@ ulid = { version = "1", features = ["serde"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "sync", "time"] }
 url = { version = "2", features = ["serde"] }
 dirs = "5"
+toml = "0.8"
 
 [profile.release]
 opt-level = 3
