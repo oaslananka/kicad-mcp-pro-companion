@@ -41,11 +41,10 @@ pub fn build_identity_store(
     Err(DaemonError::SecretStoreUnavailable)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 mod tests {
     use super::*;
 
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[test]
     fn native_platform_builds_production_identity_store() {
         let dir = tempfile::tempdir().unwrap();
