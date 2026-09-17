@@ -9,6 +9,8 @@ use companion_core::{CompanionError, DeviceId};
 use zeroize::Zeroize;
 
 pub mod memory;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+pub mod native_keyring;
 #[cfg(target_os = "windows")]
 pub mod windows_dpapi;
 
