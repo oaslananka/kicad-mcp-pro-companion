@@ -130,6 +130,19 @@ async fn run_setup(cfg: &companion_core::CompanionConfig) -> anyhow::Result<()> 
                 } else {
                     println!("\u{2717} no device identity yet \u{2014} run `kicad-mcp-companion pair` after starting the daemon");
                 }
+                println!(
+                    "{} KiCad MCP Pro {}",
+                    if status.core_bridge_reachable {
+                        "\u{2713}"
+                    } else {
+                        "\u{2717}"
+                    },
+                    if status.core_bridge_reachable {
+                        "detected"
+                    } else {
+                        "offline"
+                    }
+                );
             }
             println!("\u{2713} local daemon available");
         }
@@ -137,7 +150,6 @@ async fn run_setup(cfg: &companion_core::CompanionConfig) -> anyhow::Result<()> 
             println!("\u{2717} local daemon not reachable \u{2014} run `kicad-mcp-companion daemon start` first");
         }
     }
-    println!("\u{2717} KiCad MCP Pro detection is not implemented yet (lands in a later phase)");
     Ok(())
 }
 

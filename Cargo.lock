@@ -1363,6 +1363,7 @@ dependencies = [
  "anyhow",
  "clap",
  "companion-core",
+ "companion-core-bridge",
  "companion-identity",
  "companion-protocol",
  "companion-sessions",
