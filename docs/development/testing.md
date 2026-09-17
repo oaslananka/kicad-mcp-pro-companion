@@ -75,8 +75,11 @@ kicad-mcp-pro server, not a manual/GUI-only check.
 
 ## What CI enforces
 
-See `.github/workflows/ci.yml`. `cargo clippy --workspace --all-targets -- -D
-warnings` must be clean; no `unwrap()`/`expect()` is permitted in
+See `.github/workflows/ci.yml`. The repository declares Rust 1.88 as its MSRV;
+CI runs `cargo check --workspace --all-targets --locked` and the desktop Tauri
+crate with Rust 1.88.0 in addition to the stable-toolchain matrix. `cargo
+clippy --workspace --all-targets -- -D warnings` must be clean; no
+`unwrap()`/`expect()` is permitted in
 request/security-handling paths without a comment justifying the
 impossibility statically (and even then it is discouraged — prefer a typed
 error). Live-KiCad tests (which require a real KiCad/kicad-mcp-pro install)

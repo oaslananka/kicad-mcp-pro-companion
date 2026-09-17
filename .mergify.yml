@@ -12,6 +12,7 @@ merge_protections:
       - 'check-success = @github-actions/rust / ubuntu-latest'
       - 'check-success = @github-actions/rust / windows-latest'
       - 'check-success = @github-actions/rust / macos-latest'
+      - 'check-success = @github-actions/rust / msrv-1.88'
       - 'check-success = @github-actions/security / cargo-audit'
       - 'check-success = @github-actions/frontend (apps/desktop)'
       - 'check-success = @github-actions/security / dependency-review'

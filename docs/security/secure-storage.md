@@ -42,9 +42,8 @@ creation/loading fails with a typed backend error rather than degrading to a
 file-based secret store. Unsupported operating systems still fail startup with
 `IDENTITY_SECRET_STORE_UNAVAILABLE`.
 
-The keyring integration is pinned to `keyring = 3.6.3`; on macOS,
-`security-framework = 3.6.0` is also pinned because later 3.x releases require
-a newer Rust toolchain than this repository's declared Rust 1.78 contract.
+The keyring integration is pinned to `keyring = 3.6.3`. The repository declares
+Rust 1.88 as its minimum supported Rust version and verifies that floor in CI.
 
 ## Device identity lifecycle
 

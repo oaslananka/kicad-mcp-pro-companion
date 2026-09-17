@@ -22,7 +22,7 @@ GitHub secret scanning, secret-scanning push protection, and Dependabot security
 
 ## Dependency updates
 
-Dependabot is configured weekly for Cargo, `apps/desktop` npm/pnpm dependencies, and GitHub Actions. Dependabot does not auto-merge changes; every update still goes through the repository's normal review and CI path.
+Dependabot is configured weekly for Cargo, `apps/desktop` npm/pnpm dependencies, and GitHub Actions. Routine minor/patch version updates are grouped into at most one open PR per ecosystem; major version migrations are manual work rather than automated PR churn. Dependabot security updates remain enabled and are not restricted by the version-update policy. Dependabot does not auto-merge changes; every update still goes through the repository's normal review and CI path.
 
 ## Mergify
 
