@@ -1,0 +1,16 @@
+merge_protections_settings:
+  reporting_method: check-runs
+  post_comment: false
+
+# Auto-merge is intentionally omitted. Merges remain an explicit maintainer action.
+merge_protections:
+  - name: main branch quality gate
+    if:
+      - base = main
+    success_conditions:
+      - 'title ~= ^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\([A-Za-z0-9._-]+\))?!?: .+'
+      - 'check-success = @github-actions/rust / ubuntu-latest'
+      - 'check-success = @github-actions/rust / windows-latest'
+      - 'check-success = @github-actions/rust / macos-latest'
+      - 'check-success = @github-actions/security / cargo-audit'
+      - 'check-success = @github-actions/frontend (apps/desktop)'

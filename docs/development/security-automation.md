@@ -1,0 +1,47 @@
+# Repository security automation
+
+This document records the repository-level security and quality automation baseline as of 2026-09-17.
+
+## Enforced in repository workflows
+
+- GitHub Actions are pinned to full commit SHAs; version comments are kept for Dependabot readability.
+- Workflow tokens default to no permissions or `contents: read`; write permissions are granted only to the OSV full-scan SARIF upload.
+- Checkout credentials are not persisted in ordinary CI jobs.
+- `cargo audit` remains part of the normal cross-platform CI workflow.
+- `pnpm audit` is part of the desktop CI job and must report no known vulnerabilities.
+- Dependency Review blocks pull requests that introduce moderate-or-higher vulnerable dependencies, including development dependencies.
+- zizmor audits GitHub Actions workflows as a blocking PR check.
+- OSV-Scanner compares PR dependency state against the base branch and rejects newly introduced known vulnerabilities.
+- A weekly and main-push OSV full scan checks the complete current dependency baseline and uploads SARIF to GitHub code scanning.
+
+The Tauri lockfile currently requires time-bounded OSV exceptions in `apps/desktop/src-tauri/osv-scanner.toml`. They cover one `glib` unsoundness constrained by the current stable Tauri 2.x GTK3 stack (expiry 2026-10-31) and INFO/unmaintained transitives from GTK/urlpattern (expiry 2026-12-31). OSV prints each exception and its reason during scans; new advisories remain fail-closed.
+
+## GitHub native protections
+
+GitHub secret scanning, secret-scanning push protection, and Dependabot security updates are enabled for this public repository. Generic/non-provider secret patterns and partner validity checks are not enabled because GitHub currently limits those repository-level features to eligible organization-owned repositories with Secret Protection.
+
+## Dependency updates
+
+Dependabot is configured weekly for Cargo, `apps/desktop` npm/pnpm dependencies, and GitHub Actions. Dependabot does not auto-merge changes; every update still goes through the repository's normal review and CI path.
+
+## Mergify
+
+Mergify is already installed for this repository. `.mergify.yml` configures only Merge Protections for `main`: Conventional Commit-style PR titles plus the core Rust, cargo-audit, and desktop CI checks.
+
+Auto-merge/auto-queue is intentionally not configured. The `auto_merge_conditions` setting is omitted so merging remains an explicit maintainer action.
+
+## SonarQube Cloud
+
+SonarQube Cloud supports Rust, including native Rust analysis and Clippy integration. For GitHub repositories, SonarQube Cloud recommends automatic analysis when the imported project is eligible; that mode requires no repository scanner workflow or `SONAR_TOKEN`.
+
+This repository does not currently have a Sonar project/check. The standard activation path is therefore: bind/import the real GitHub repository into SonarQube Cloud first and use automatic analysis if Sonar marks the project eligible. Only switch to CI-based analysis when automatic analysis is unsuitable (for example, when coverage, monorepo behavior, or other advanced CI-controlled analysis is required); CI-based analysis then needs the real project identifiers and authentication secret.
+
+No placeholder project key, fake token, or workflow that claims Sonar is enabled is committed. Keep the existing `cargo clippy -D warnings` gate regardless of Sonar mode; Sonar's Clippy integration is additive and must not weaken the local compiler/lint gate.
+
+## OpenSSF Scorecard
+
+Scorecard was evaluated but is not enabled in this baseline. As of 2026-09-17, the supported action is v2.4.4 or newer, while an upstream open issue documents that the action's runtime container is referenced by a mutable tag. That weakens the guarantee provided by SHA-pinning the outer action, so the repository does not add that extra supply-chain dependency until the runtime image is immutable/digest-pinned.
+
+## GitHub branch/ruleset enforcement
+
+The repository currently has no GitHub ruleset. After this baseline is merged to the default branch and the new checks have stable check names, create a `main` ruleset requiring pull requests and the relevant CI/security checks, including `Mergify Merge Protections`. Do not require an approval count that makes a single-maintainer repository impossible to operate, and do not enable automatic merging as part of that ruleset.
