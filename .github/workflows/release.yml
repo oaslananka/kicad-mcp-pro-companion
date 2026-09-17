@@ -5,13 +5,14 @@ on:
     tags:
       - "v*"
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   build-binaries:
     name: build / ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -42,18 +43,23 @@ jobs:
 
       - name: Package binaries
         shell: bash
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          TARGET: ${{ matrix.target }}
+          SUFFIX: ${{ matrix.binary_suffix }}
+          OS_NAME: ${{ runner.os }}
         run: |
-          STAGE_DIR="kicad-mcp-companion-${{ github.ref_name }}-${{ matrix.target }}"
+          STAGE_DIR="kicad-mcp-companion-${REF_NAME}-${TARGET}"
           mkdir -p "$STAGE_DIR"
-          cp "target/${{ matrix.target }}/release/companion-cli${{ matrix.binary_suffix }}" "$STAGE_DIR/"
-          cp "target/${{ matrix.target }}/release/companion-daemon${{ matrix.binary_suffix }}" "$STAGE_DIR/"
+          cp "target/${TARGET}/release/companion-cli${SUFFIX}" "$STAGE_DIR/"
+          cp "target/${TARGET}/release/companion-daemon${SUFFIX}" "$STAGE_DIR/"
           cp README.md LICENSE "$STAGE_DIR/"
-          if [ "${{ runner.os }}" = "Windows" ]; then
+          if [ "$OS_NAME" = "Windows" ]; then
             7z a "${STAGE_DIR}.zip" "$STAGE_DIR"
-            echo "ARCHIVE_PATH=${STAGE_DIR}.zip" >> $GITHUB_ENV
+            echo "ARCHIVE_PATH=${STAGE_DIR}.zip" >> "$GITHUB_ENV"
           else
             tar -czvf "${STAGE_DIR}.tar.gz" "$STAGE_DIR"
-            echo "ARCHIVE_PATH=${STAGE_DIR}.tar.gz" >> $GITHUB_ENV
+            echo "ARCHIVE_PATH=${STAGE_DIR}.tar.gz" >> "$GITHUB_ENV"
           fi
 
       - name: Upload artifact
@@ -66,8 +72,12 @@ jobs:
     name: publish / github-release
     needs: [build-binaries]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Download all build artifacts
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
@@ -82,9 +92,11 @@ jobs:
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@c5f59ee97f1f0e42d7653245451e0f06a0907e28 # v2.1.0
-        with:
-          files: dist/*
-          generate_release_notes: true
-          draft: false
+      - name: Create GitHub Release using CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG_NAME" dist/* \
+            --title "KiCad MCP Pro Companion $TAG_NAME" \
+            --generate-notes

@@ -20,6 +20,21 @@ pub enum TransportMode {
     Mock,
 }
 
+impl TransportMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TransportMode::Disabled => "disabled",
+            TransportMode::Mock => "mock",
+        }
+    }
+}
+
+impl std::fmt::Display for TransportMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 impl FromStr for TransportMode {
     type Err = ConfigError;
 
