@@ -90,9 +90,10 @@ not a roadmap dressed up as a status:
 - ✅ Session state machine (explicit transitions, TTL, revoke-is-terminal).
 - ✅ Daemon + CLI + local IPC (named pipe/Unix socket), single-instance guard.
 - ✅ Local kicad-mcp-pro MCP bridge (loopback-only, typed errors, timeouts).
-- ✅ Mock transport + reconnect/backoff; daemon-side remote-operation
-  processor wired to policy/core-bridge/audit, including per-operation
-  high-risk "allow once" approval.
+- ✅ Daemon runtime supervisor owns local IPC plus optional outbound transport;
+  reconnect/backoff is active when an explicit development transport is enabled.
+  The remote-operation processor remains behind policy/core-bridge/audit, including
+  per-operation high-risk "allow once" approval.
 - ✅ Structured audit trail; local safe-snapshot checkpoints.
 - ✅ Tauri desktop shell (status/device/pairing/workspaces/sessions incl.
   approval dialogs/activity/settings) — builds and typechecks; not yet
@@ -148,12 +149,13 @@ pnpm tauri dev   # requires the daemon running separately, or via `daemon start`
 ## Development mock mode
 
 There is no production cloud backend yet, and this repository will never
-contain one (see [Out of scope](#out-of-scope), below). Development and
-testing use an in-process mock relay and a mock kicad-mcp-pro server so the
-full pairing → session → operation → audit flow can be exercised without any
-external service. Anywhere this is active, the CLI/desktop UI say so
-explicitly (e.g. "Using local mock pairing provider") — production behavior
-is never simulated silently.
+contain one (see [Out of scope](#out-of-scope), below). The daemon therefore
+runs with outbound transport **disabled by default** and still serves local
+IPC/status normally. For development or tests, set
+`COMPANION_TRANSPORT_MODE=mock` explicitly to enable the in-process mock
+transport; mock kicad-mcp-pro fixtures can then exercise the full pairing →
+session → operation → audit flow without any external service. Mock mode is
+never silently presented as a production relay.
 
 ## What is NOT supported yet
 
@@ -167,8 +169,8 @@ manufacturing automation. See spec §14 for the full list and rationale.
 ## Roadmap
 
 Phases 0–9 (foundation, domain/storage, identity, workspaces/policy,
-sessions, daemon/CLI/IPC, core bridge, transport, audit/checkpoints,
-desktop) are complete, including an automated end-to-end vertical slice
+sessions, daemon/CLI/IPC, core bridge, local transport lifecycle,
+audit/checkpoints, desktop) are complete, including an automated end-to-end vertical slice
 (Phase 10's core deliverable). Tracked in
 [the implementation plan](docs/superpowers/plans/2026-09-16-companion-v1.md).
 Remaining, tracked as follow-on work rather than blocking V1: a real cloud

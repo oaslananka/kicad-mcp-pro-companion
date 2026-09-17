@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use tokio::sync::watch;
+
 use companion_audit::AuditRepository;
 use companion_core::{Capability, Clock, OperationId, OperationRequest, RiskLevel};
 use companion_core_bridge::{CoreBridgeClient, CoreBridgeConfig};
@@ -10,6 +12,45 @@ use companion_sessions::SessionRepository;
 use companion_storage::Storage;
 use companion_transport::Transport;
 use companion_workspace::WorkspaceRepository;
+
+/// Sticky daemon-wide shutdown signal. Unlike `Notify::notify_waiters`, a
+/// request cannot be missed by a task that is temporarily between awaits.
+pub struct ShutdownSignal {
+    sender: watch::Sender<bool>,
+}
+
+impl ShutdownSignal {
+    pub fn new() -> Self {
+        let (sender, _receiver) = watch::channel(false);
+        Self { sender }
+    }
+
+    pub fn request(&self) {
+        self.sender.send_replace(true);
+    }
+
+    pub fn is_requested(&self) -> bool {
+        *self.sender.borrow()
+    }
+
+    pub async fn cancelled(&self) {
+        let mut receiver = self.sender.subscribe();
+        if *receiver.borrow() {
+            return;
+        }
+        while receiver.changed().await.is_ok() {
+            if *receiver.borrow() {
+                return;
+            }
+        }
+    }
+}
+
+impl Default for ShutdownSignal {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// A high-risk operation the policy engine has flagged with
 /// `RequireApproval`. It sits here until a local user calls
@@ -36,7 +77,7 @@ pub struct DaemonState {
     /// health checks cannot mutate the operation bridge's MCP session.
     pub core_health_probe_config: CoreBridgeConfig,
     pub clock: Arc<dyn Clock>,
-    pub shutdown: Arc<tokio::sync::Notify>,
+    pub shutdown: Arc<ShutdownSignal>,
     /// Set once a (mock or, in future, real) relay transport is connected.
     /// `ApproveOperation`/`DenyOperation` send their result back over
     /// whichever transport is current at decision time.

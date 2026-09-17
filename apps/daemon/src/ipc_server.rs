@@ -8,6 +8,7 @@ use std::sync::Arc;
 use companion_protocol::{read_message, write_message, CodecError, IpcRequest};
 use interprocess::local_socket::tokio::{prelude::*, Stream};
 use interprocess::local_socket::{GenericNamespaced, ListenerOptions, ToNsName};
+use tokio::task::JoinSet;
 
 use crate::handlers::handle_request;
 use crate::state::DaemonState;
@@ -18,6 +19,7 @@ pub async fn run_ipc_server(state: Arc<DaemonState>, data_dir: PathBuf) -> anyho
     let name = companion_protocol::socket_name(&data_dir).to_ns_name::<GenericNamespaced>()?;
     let listener = ListenerOptions::new().name(name).create_tokio()?;
     let shutdown = Arc::clone(&state.shutdown);
+    let mut connections = JoinSet::new();
 
     tracing::info!("local ipc listener ready");
 
@@ -26,14 +28,21 @@ pub async fn run_ipc_server(state: Arc<DaemonState>, data_dir: PathBuf) -> anyho
             accepted = listener.accept() => {
                 let stream = accepted?;
                 let state = Arc::clone(&state);
-                tokio::spawn(async move {
+                connections.spawn(async move {
                     if let Err(e) = handle_connection(stream, state).await {
                         tracing::warn!(error = %e, "ipc connection ended with an error");
                     }
                 });
             }
-            _ = shutdown.notified() => {
+            joined = connections.join_next(), if !connections.is_empty() => {
+                if let Some(Err(error)) = joined {
+                    tracing::warn!(error = %error, "ipc connection task failed");
+                }
+            }
+            _ = shutdown.cancelled() => {
                 tracing::info!("ipc server shutting down");
+                connections.abort_all();
+                while connections.join_next().await.is_some() {}
                 return Ok(());
             }
         }
