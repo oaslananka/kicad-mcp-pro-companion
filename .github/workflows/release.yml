@@ -33,13 +33,15 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master @ 2026-09-17
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
 
       - name: Build release CLI & Daemon binaries
-        run: cargo build --release --target ${{ matrix.target }} -p kicad-mcp-companion-cli -p kicad-mcp-companion-daemon
+        env:
+          TARGET: ${{ matrix.target }}
+        run: cargo build --release --target "$TARGET" -p kicad-mcp-companion-cli -p kicad-mcp-companion-daemon
 
       - name: Package binaries
         shell: bash
