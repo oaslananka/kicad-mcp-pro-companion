@@ -1,47 +1,65 @@
-# Repository security automation
+# Repository Security Automation & Temporary Advisory Management
 
-This document records the repository-level security and quality automation baseline as of 2026-09-17.
+This document records the repository-level security baseline, quality automation rules, and active security advisory review schedules (Issue #4).
 
-## Enforced in repository workflows
+## Enforced Security Automation
 
-- GitHub Actions are pinned to full commit SHAs; version comments are kept for Dependabot readability.
-- Workflow tokens default to no permissions or `contents: read`. The OSV reusable workflows require `security-events: write` in their caller permission contract; PR SARIF upload remains disabled, while the full scan uses that permission to upload SARIF.
-- Checkout credentials are not persisted in ordinary CI jobs.
-- `cargo audit` remains part of the normal cross-platform CI workflow.
-- `pnpm audit` is part of the desktop CI job and must report no known vulnerabilities.
-- Dependency Review blocks pull requests that introduce moderate-or-higher vulnerable dependencies, including development dependencies.
-- zizmor audits GitHub Actions workflows as a blocking PR check.
-- OSV-Scanner compares PR dependency state against the base branch and rejects newly introduced known vulnerabilities.
-- A weekly and main-push OSV full scan checks the complete current dependency baseline and uploads SARIF to GitHub code scanning.
+- **GitHub Actions Security**: All actions are pinned to immutable commit SHAs with version comments for readability.
+- **Least Privilege Tokens**: Workflow permissions default to `{}` or `contents: read`. Elevated permissions (`contents: write`, `security-events: write`) are granted strictly per-job where required.
+- **No Persisted Credentials**: `actions/checkout` steps use `persist-credentials: false`.
+- **Cargo Audit & pnpm Audit**: `cargo audit` runs as a mandatory CI step for Rust dependencies, and `pnpm audit` checks npm packages in `apps/desktop`.
+- **Dependency Review**: Pull requests that introduce moderate-or-higher vulnerable dependencies are automatically rejected.
+- **Workflow Security (zizmor)**: zizmor scans GitHub Actions workflows for template injection, overly broad permissions, and insecure configurations.
+- **OSV Security Scanning**: OSV-Scanner checks pull requests and runs weekly scheduled scans across the full dependency tree, uploading SARIF reports to GitHub Code Scanning.
 
-The Tauri lockfile currently requires time-bounded OSV exceptions in `apps/desktop/src-tauri/osv-scanner.toml`. They cover one `glib` unsoundness constrained by the current stable Tauri 2.x GTK3 stack (expiry 2026-10-31) and INFO/unmaintained transitives from GTK/urlpattern (expiry 2026-12-31). OSV prints each exception and its reason during scans; new advisories remain fail-closed.
+---
 
-## GitHub native protections
+## Active Temporary Security Exception (Issue #4)
 
-GitHub secret scanning, secret-scanning push protection, and Dependabot security updates are enabled for this public repository. Generic/non-provider secret patterns and partner validity checks are not enabled because GitHub currently limits those repository-level features to eligible organization-owned repositories with Secret Protection.
+The Tauri desktop application lockfile (`apps/desktop/src-tauri/Cargo.lock`) contains a time-bounded security exception in `apps/desktop/src-tauri/osv-scanner.toml`.
 
-## Dependency updates
+### Advisory RUSTSEC-2024-0429 Analysis
 
-Dependabot is configured weekly for Cargo, `apps/desktop` npm/pnpm dependencies, and GitHub Actions. Routine minor/patch version updates are grouped into at most one open PR per ecosystem; major version migrations are manual work rather than automated PR churn. Dependabot security updates remain enabled and are not restricted by the version-update policy. Dependabot does not auto-merge changes; every update still goes through the repository's normal review and CI path.
+- **Advisory ID**: `RUSTSEC-2024-0429` (CVE-2024-52533 - `glib` `VariantStrIter` out-of-bounds read unsoundness).
+- **Patched Release Floor**: `glib >= 0.20.0` (in `gtk-rs 0.20` series).
+- **Current Version in Lockfile**: `glib 0.18.5`.
 
-## Mergify
+#### Exact Dependency Chain
 
-Mergify is already installed for this repository. `.mergify.yml` configures only Merge Protections for `main`: Conventional Commit-style PR titles plus the core Rust, cargo-audit, desktop, Dependency Review, zizmor, and OSV PR checks.
+```
+glib v0.18.5
+├── atk v0.18.2
+│   └── gtk v0.18.2
+│       ├── muda v0.19.3
+│       │   └── tauri v2.11.5
+│       ├── tao v0.35.3
+│       │   └── tauri-runtime-wry v2.11.4
+│       │       └── tauri v2.11.5
+│       ├── tauri v2.11.5
+│       ├── tauri-runtime v2.11.3
+│       └── wry v0.55.1
+```
 
-Auto-merge/auto-queue is intentionally not configured. The `auto_merge_conditions` setting is omitted so merging remains an explicit maintainer action.
+#### Upstream Blocker
 
-## SonarQube Cloud
+`glib 0.18.5` is locked by `gtk-rs 0.18.x` crate bounds (`gtk v0.18.2`, `gdk v0.18.2`, `gio v0.18.4`, `cairo-rs v0.18.5`, `atk v0.18.2`). `glib 0.18.5` is the highest patch version published in the `0.18` series.
 
-SonarQube Cloud supports Rust, including native Rust analysis and Clippy integration. For GitHub repositories, SonarQube Cloud recommends automatic analysis when the imported project is eligible; that mode requires no repository scanner workflow or `SONAR_TOKEN`.
+Upgrading `glib` to `>= 0.20.0` requires upgrading the entire Linux webview crate stack (`tao`, `wry`, `muda`, `webkit2gtk`) to `gtk-rs 0.20`. Stable Tauri 2.11.x uses `tao 0.35` and `wry 0.55`, which are anchored to `gtk-rs 0.18`. Therefore, `glib` cannot be upgraded independently within stable Tauri 2.x without breaking upstream compiler bounds.
 
-This repository does not currently have a Sonar project/check. The standard activation path is therefore: bind/import the real GitHub repository into SonarQube Cloud first and use automatic analysis if Sonar marks the project eligible. Only switch to CI-based analysis when automatic analysis is unsuitable (for example, when coverage, monorepo behavior, or other advanced CI-controlled analysis is required); CI-based analysis then needs the real project identifiers and authentication secret.
+#### Exposure Assessment
 
-No placeholder project key, fake token, or workflow that claims Sonar is enabled is committed. Keep the existing `cargo clippy -D warnings` gate regardless of Sonar mode; Sonar's Clippy integration is additive and must not weaken the local compiler/lint gate.
+1. Companion desktop shell (`apps/desktop/src-tauri/src/main.rs`) does not call `GVariant` or `VariantStrIter` functions directly.
+2. The Tauri desktop process acts strictly as a thin IPC forwarder, passing typed requests over local Unix domain / named sockets (`interprocess::local_socket`) using JSON encoding directly to the local daemon socket.
+3. Actual security risk exposure to `VariantStrIter` out-of-bounds read in the desktop application is assessed as **LOW**.
 
-## OpenSSF Scorecard
+#### Time-Bounded Expiry & Review Schedule
 
-Scorecard was evaluated but is not enabled in this baseline. As of 2026-09-17, the supported action is v2.4.4 or newer, while an upstream open issue documents that the action's runtime container is referenced by a mutable tag. That weakens the guarantee provided by SHA-pinning the outer action, so the repository does not add that extra supply-chain dependency until the runtime image is immutable/digest-pinned.
+- **Exception Expiry Date**: `2026-10-31`
+- **Tracked Issue**: Issue #4 ("security: retire temporary Tauri OSV exceptions before expiry").
+- **Exit Criteria**: When upstream Tauri releases a stable build migrating its Linux GTK dependencies to `gtk-rs >= 0.20`, upgrade `apps/desktop/src-tauri`, regenerate lockfiles, verify all security scans, and remove `RUSTSEC-2024-0429` from `osv-scanner.toml`.
 
-## GitHub branch/ruleset enforcement
+---
 
-A repository ruleset named `main quality gate` is staged in GitHub with enforcement set to `disabled` until this baseline is merged to the default branch. It targets `main` and is preconfigured to require pull requests, resolved review threads, the core Rust/desktop/security checks, and `Mergify Merge Protections`; required check sources are pinned to their GitHub App integration IDs. It also blocks force-pushes and deletion when activated. The ruleset intentionally requires zero approving reviews so a single-maintainer repository remains operable, and automatic merging is not enabled by the ruleset. After this baseline is merged and the checks run successfully from `main`, activate the staged ruleset without changing its check set unless a real check name/source has changed.
+## Dependency Update Policy
+
+Dependabot is configured weekly for Cargo, npm/pnpm, and GitHub Actions. Routine minor and patch updates are grouped into a single PR per ecosystem. Security updates remain enabled independently. Merging PRs remains an explicit maintainer action; auto-merge is intentionally disabled.
